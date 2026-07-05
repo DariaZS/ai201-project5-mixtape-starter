@@ -111,3 +111,11 @@ I chose to fix three bugs (#1, #4, #5). I also investigated #2 (stale feed) and 
 5. **Fix + side-effect check:** Changed the slice to the full list: `[song.to_dict() for song in songs]`. Both playlist tests now pass, confirming all songs return in correct position order. Committed as `fix: return all playlist songs instead of dropping the last`.
 
    *AI disclosure:* Used AI to confirm the query was correct so the search could focus on the return line.
+
+---
+
+## Commit History
+
+One commit per fix on the `bugfix/mixtape` branch, plus a regression-test commit:
+
+![git log --oneline showing one commit per fix](screenshots/git-log.png)
