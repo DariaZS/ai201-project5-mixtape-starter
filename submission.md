@@ -23,11 +23,11 @@ Both times the AI's read of the code was plausible but wrong once I actually ran
 - `routes/feed.py` — feed endpoints: `GET /feed/<user_id>/listening-now` and `GET /feed/<user_id>/activity`.
 - `routes/playlists.py` — playlist creation and song management.
 - `routes/users.py` — user profiles, streaks, notifications.
-- `services/streak_service.py` — `record_listening_event(user_id, song_id)` creates the `ListeningEvent` row and calls `update_listening_streak()` to bump/reset streak state; commits both together. **Issue #1** (streak resets) lives here.
-- `services/feed_service.py` — `get_friends_listening_now()` (last-24h, deduped to one song per friend) and `get_activity_feed()` (most recent N events, no time filter, no dedup). **Issue #2** (stale "listening now") lives here.
-- `services/search_service.py` — song search logic. **Issue #3** (duplicate search results) lives here.
-- `services/notification_service.py` — notification creation/retrieval; validates song existence at `notify_song_rated()` — worth noting `record_listening_event` does *not* do the same validation (see Pattern below). **Issue #4** (missing rating notification) lives here.
-- `services/playlist_service.py` — playlist retrieval logic. **Issue #5** (last playlist song missing) lives here.
+- `services/streak_service.py` — `record_listening_event(user_id, song_id)` creates the `ListeningEvent` row and calls `update_listening_streak()` to bump/reset streak state; commits both together.
+- `services/feed_service.py` — `get_friends_listening_now()` (last-24h, deduped to one song per friend) and `get_activity_feed()` (most recent N events, no time filter, no dedup).
+- `services/search_service.py` — song search logic; searches by title/artist and returns each song's tags.
+- `services/notification_service.py` — notification creation/retrieval; validates song existence at `notify_song_rated()` — worth noting `record_listening_event` does *not* do the same validation (see Pattern below).
+- `services/playlist_service.py` — playlist retrieval logic; orders songs by their `position` in the playlist.
 
 ### Data flow: a listen reaching a friend's feed
 
@@ -66,7 +66,7 @@ The write and read paths never call each other directly — they're joined only 
 - **Routes delegate immediately to services.** Route functions parse the request and format the response; business logic lives in `services/`.
 - **No feed table — feeds are derived on read.** This means a bug in either the write path (what gets recorded) or the read path (how it's filtered/deduped) can silently change what a user sees, with no single place to inspect "the feed" directly.
 - **Inconsistent validation across services.** `notification_service.notify_song_rated()` validates the song exists before acting; `streak_service.record_listening_event()` does not — a bad `song_id` gets stored and only fails later, at read time, when `feed_service` calls `.to_dict()` on a missing song.
-- **Explicit ordering, not insertion order.** `playlist_entries` stores a `position` column rather than relying on row order — any playlist read logic that doesn't sort by `position` (or mishandles the boundary of that ordering) is a likely home for Issue #5.
+- **Explicit ordering, not insertion order.** `playlist_entries` stores a `position` column rather than relying on row order — any playlist read logic needs to sort by `position` explicitly rather than trust insertion order.
 - **UUID string PKs everywhere.** Every model uses `default=generate_uuid` string PKs rather than auto-increment ints — worth remembering if any bug involves comparing or looking up IDs.
 
 ### AI disclosure
