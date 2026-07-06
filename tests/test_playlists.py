@@ -5,8 +5,9 @@ Tests for playlist retrieval logic.
 """
 
 import pytest
+
 from app import create_app, db
-from models import User, Song, Playlist, playlist_entries
+from models import Playlist, Song, User, playlist_entries
 from services.playlist_service import create_playlist, get_playlist_songs
 
 
@@ -84,3 +85,37 @@ def test_empty_playlist_returns_empty_list(app):
 
         songs = get_playlist_songs(playlist.id)
         assert songs == []
+
+
+def test_single_song_playlist_returns_the_song(app):
+    """
+    Boundary case for the Issue #5 fix: a playlist with exactly one song
+    should return that song, not an empty list. The old `songs[:-1]` bug
+    would have silently dropped a playlist's only song here.
+    """
+    with app.app_context():
+        user = User(username="soloist", email="soloist@example.com")
+        db.session.add(user)
+        db.session.flush()
+
+        song = Song(title="Only Track", artist="Solo Artist", shared_by=user.id)
+        db.session.add(song)
+        db.session.flush()
+
+        playlist = Playlist(name="One-Song Playlist", created_by=user.id)
+        db.session.add(playlist)
+        db.session.flush()
+
+        db.session.execute(
+            playlist_entries.insert().values(
+                playlist_id=playlist.id,
+                song_id=song.id,
+                position=1,
+                added_by=user.id,
+            )
+        )
+        db.session.commit()
+
+        songs = get_playlist_songs(playlist.id)
+        assert len(songs) == 1
+        assert songs[0]["title"] == "Only Track"
